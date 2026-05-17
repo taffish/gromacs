@@ -1,0 +1,47 @@
+[package]
+name = "gromacs"
+kind = "tool"
+version = "2026.2"
+release = 1
+license = "Apache-2.0"
+main = "src/main.taf"
+
+[meta]
+domain = "bio"
+categories = ["molecular-dynamics", "molecular-simulation", "structural-biology", "computational-chemistry"]
+keywords = ["gromacs", "gmx", "molecular-dynamics", "simulation", "mdrun", "grompp", "pdb2gmx", "trajectory-analysis"]
+description = "CPU-only GROMACS molecular dynamics simulation and analysis suite, including the gmx command-line tool, built-in force-field data, preparation commands, mdrun, and analysis subcommands."
+
+[repository]
+url = "https://github.com/taffish/gromacs"
+
+[command]
+name = "taf-gromacs"
+
+[runtime]
+pipe = true
+command_mode = true
+
+[container]
+image = "ghcr.io/taffish/gromacs:2026.2-r1"
+dockerfile = "docker/Dockerfile"
+build_platforms = "linux/amd64,linux/arm64"
+
+[upstream]
+name = "GROMACS"
+type = "gitlab"
+repo = "gromacs/gromacs"
+homepage = "https://www.gromacs.org/"
+release_url = "https://manual.gromacs.org/2026.2/release-notes/index.html"
+downloads = "https://ftp.gromacs.org/gromacs/gromacs-2026.2.tar.gz"
+version = "2026.2"
+license = "LGPL-2.1-or-later"
+citation = "GROMACS development team 2026; Abraham et al. 2015"
+doi = "10.5281/zenodo.20037885; 10.1016/j.softx.2015.06.001"
+watch = "manual"
+
+[smoke]
+backend = "docker"
+timeout = 180
+exist = ["gmx"]
+test = ["gmx --version | grep -F 'GROMACS version:' >/dev/null && gmx --version | grep -F '2026.2' >/dev/null", "gmx help commands | grep -F 'mdrun' >/dev/null && gmx help commands | grep -F 'pdb2gmx' >/dev/null && gmx mdrun -h 2>&1 | grep -F 'GROMACS' >/dev/null", "mkdir -p /tmp/taf-gromacs-editconf && cd /tmp/taf-gromacs-editconf && printf 'Tiny water\\n    3\\n    1SOL     OW    1   0.000   0.000   0.000\\n    1SOL    HW1    2   0.095   0.000   0.000\\n    1SOL    HW2    3  -0.032   0.090   0.000\\n   1.00000   1.00000   1.00000\\n' > water.gro && gmx editconf -f water.gro -o water.pdb >/dev/null 2>&1 && grep -F 'ATOM' water.pdb >/dev/null", "mkdir -p /tmp/taf-gromacs-mdrun && cd /tmp/taf-gromacs-mdrun && printf 'Tiny water\\n    3\\n    1SOL     OW    1   0.000   0.000   0.000\\n    1SOL    HW1    2   0.095   0.000   0.000\\n    1SOL    HW2    3  -0.032   0.090   0.000\\n   1.00000   1.00000   1.00000\\n' > water.gro && printf '#include \"oplsaa.ff/forcefield.itp\"\\n#include \"oplsaa.ff/tip3p.itp\"\\n\\n[ system ]\\nTiny water\\n\\n[ molecules ]\\nSOL 1\\n' > topol.top && printf 'integrator = md\\nnsteps = 0\\ndt = 0.001\\nnstlist = 1\\ncutoff-scheme = Verlet\\nrlist = 0.4\\nverlet-buffer-tolerance = -1\\ncoulombtype = Cut-off\\nrcoulomb = 0.4\\nrvdw = 0.4\\npbc = xyz\\nconstraints = none\\ncontinuation = yes\\n' > mini.mdp && gmx grompp -f mini.mdp -c water.gro -p topol.top -o mini.tpr >/dev/null 2>&1 && test -s mini.tpr && gmx mdrun -deffnm mini -ntmpi 1 -ntomp 1 >/dev/null 2>&1 && test -s mini.log"]
