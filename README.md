@@ -7,6 +7,11 @@ molecular systems.
 This TAFFISH app packages GROMACS `2026.2` as a CPU-only container build and
 exposes the upstream `gmx` command through the versioned `taf-gromacs` wrapper.
 
+Release `2026.2-r2` is a help-only TAFFISH update. It keeps the upstream
+software, Dockerfile, runtime dependencies, smoke tests, and command behavior
+unchanged from `2026.2-r1`, and refreshes the terminal `taf-gromacs --help`
+text.
+
 ## Build Profile
 
 This release is intentionally a portable baseline build:
@@ -43,7 +48,7 @@ taf install gromacs
 Install the exact release:
 
 ```sh
-taf install gromacs 2026.2-r1
+taf install gromacs 2026.2-r2
 ```
 
 For local testing before publication:
@@ -183,9 +188,9 @@ production HPC environments.
 ```text
 name: gromacs
 command: taf-gromacs
-version: 2026.2-r1
+version: 2026.2-r2
 kind: tool
-image: ghcr.io/taffish/gromacs:2026.2-r1
+image: ghcr.io/taffish/gromacs:2026.2-r2
 ```
 
 ## Container
