@@ -1,2 +1,0 @@
-<taf-app:container:ghcr.io/taffish/gromacs:2026.2-r1>
-gmx ::*ARGV*::

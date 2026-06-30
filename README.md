@@ -4,20 +4,19 @@ TAFFISH wrapper for [GROMACS](https://www.gromacs.org/), a molecular dynamics
 simulation and analysis suite for biomolecules, polymers, liquids, and other
 molecular systems.
 
-This TAFFISH app packages GROMACS `2026.2` as a CPU-only container build and
+This TAFFISH app packages GROMACS `2026.3` as a CPU-only container build and
 exposes the upstream `gmx` command through the versioned `taf-gromacs` wrapper.
 
-Release `2026.2-r2` is a help-only TAFFISH update. It keeps the upstream
-software, Dockerfile, runtime dependencies, smoke tests, and command behavior
-unchanged from `2026.2-r1`, and refreshes the terminal `taf-gromacs --help`
-text.
+Release `2026.3-r1` updates the packaged upstream source from GROMACS `2026.2`
+to `2026.3`. The TAFFISH wrapper contract, CPU-only build profile, runtime
+dependencies, command-mode behavior, and smoke coverage remain the same.
 
 ## Build Profile
 
 This release is intentionally a portable baseline build:
 
 ```text
-GROMACS version: 2026.2
+GROMACS version: 2026.3
 precision: mixed / single
 parallelism: thread-MPI + OpenMP
 GPU support: off
@@ -48,7 +47,7 @@ taf install gromacs
 Install the exact release:
 
 ```sh
-taf install gromacs 2026.2-r2
+taf install gromacs 2026.3-r1
 ```
 
 For local testing before publication:
@@ -188,15 +187,15 @@ production HPC environments.
 ```text
 name: gromacs
 command: taf-gromacs
-version: 2026.2-r2
+version: 2026.3-r1
 kind: tool
-image: ghcr.io/taffish/gromacs:2026.2-r2
+image: ghcr.io/taffish/gromacs:2026.3-r1
 ```
 
 ## Container
 
 The container is built from `docker/Dockerfile`. It starts from
-`debian:13-slim`, downloads the official `gromacs-2026.2.tar.gz` source
+`debian:13-slim`, downloads the official `gromacs-2026.3.tar.gz` source
 archive, verifies its SHA256 checksum, compiles with CMake and Ninja, installs
 to `/opt/gromacs`, and keeps only runtime libraries in the final image.
 
@@ -211,7 +210,7 @@ The smoke metadata checks:
 
 ```text
 exist: gmx
-test:  gmx reports version 2026.2
+test:  gmx reports version 2026.3
 test:  command list and mdrun help are available
 test:  editconf converts a minimal GRO file to PDB
 test:  grompp builds a tiny water TPR and mdrun runs a zero-step simulation
@@ -226,8 +225,9 @@ replace scientific validation of molecular dynamics protocols.
 - Homepage: <https://www.gromacs.org/>
 - Source and releases: <https://gitlab.com/gromacs/gromacs>
 - Public GitHub mirror: <https://github.com/gromacs/gromacs>
-- Documentation: <https://manual.gromacs.org/2026.2/>
-- Download: <https://ftp.gromacs.org/gromacs/gromacs-2026.2.tar.gz>
+- Documentation: <https://manual.gromacs.org/2026.3/>
+- Release notes: <https://manual.gromacs.org/2026.3/release-notes/2026/2026.3.html>
+- Download: <https://ftp.gromacs.org/gromacs/gromacs-2026.3.tar.gz>
 - License: LGPL-2.1-or-later
 - Software DOI: `10.5281/zenodo.20037885`
 - Related citation: Abraham et al. 2015, doi:`10.1016/j.softx.2015.06.001`

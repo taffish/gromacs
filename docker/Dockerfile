@@ -1,6 +1,6 @@
 ARG DEBIAN_VERSION=13-slim
-ARG GROMACS_VERSION=2026.2
-ARG GROMACS_SHA256=d27e4455e8246177952366798631a0dad9f2e1f567400a6cb854a168dcc050dd
+ARG GROMACS_VERSION=2026.3
+ARG GROMACS_SHA256=1094b7bbc6a3960223827114626657110b40096cdf9598a727935fc84ebf8aa0
 ARG DEBIAN_MIRROR=http://deb.debian.org/debian
 ARG DEBIAN_SECURITY_MIRROR=http://deb.debian.org/debian-security
 
@@ -106,7 +106,7 @@ RUN ln -sf /opt/gromacs/bin/gmx /usr/local/bin/gmx
 
 RUN set -eux; \
     gmx --version | grep -F "GROMACS version:" >/dev/null; \
-    gmx --version | grep -F "2026.2" >/dev/null; \
+    gmx --version | grep -F "2026.3" >/dev/null; \
     gmx help commands | grep -F "mdrun" >/dev/null; \
     gmx help commands | grep -F "pdb2gmx" >/dev/null; \
     gmx mdrun -h 2>&1 | grep -F "GROMACS" >/dev/null; \

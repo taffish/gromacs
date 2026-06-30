@@ -1,4 +1,4 @@
-taf-gromacs 2026.2-r2
+taf-gromacs 2026.3-r1
 
 TAFFISH wrapper for GROMACS, a molecular dynamics simulation and analysis
 suite.
@@ -34,7 +34,7 @@ Command mode:
   Do not use taf-gromacs mdrun ... as the normal form.
 
 Build profile:
-  GROMACS 2026.2, mixed precision, thread-MPI plus OpenMP, FFTW3 single
+  GROMACS 2026.3, mixed precision, thread-MPI plus OpenMP, FFTW3 single
   precision, portable scalar SIMD, GPU off, external MPI off. The mdrun
   -plumed option is enabled, but standalone PLUMED tooling is not packaged.
 
@@ -54,12 +54,12 @@ Notes:
   hardware-tuned upstream build with GPU, MPI, optimized SIMD, and site policy.
 
 Container:
-  image: ghcr.io/taffish/gromacs:2026.2-r2
+  image: ghcr.io/taffish/gromacs:2026.3-r1
   platforms: linux/amd64, linux/arm64
 
 Upstream:
   homepage: https://www.gromacs.org/
   source:   https://gitlab.com/gromacs/gromacs
-  manual:   https://manual.gromacs.org/2026.2/
+  manual:   https://manual.gromacs.org/2026.3/
   license:  LGPL-2.1-or-later
   doi:      10.5281/zenodo.20037885
