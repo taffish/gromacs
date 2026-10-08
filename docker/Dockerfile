@@ -1,6 +1,6 @@
-ARG DEBIAN_VERSION=13-slim
-ARG GROMACS_VERSION=2026.3
-ARG GROMACS_SHA256=1094b7bbc6a3960223827114626657110b40096cdf9598a727935fc84ebf8aa0
+ARG DEBIAN_VERSION=13-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+ARG GROMACS_VERSION=2026.4
+ARG GROMACS_SHA256=58eda60979b124fcf9dff8b1b63cedfbc72fdb36d99e921dc1bdc310571098b6
 ARG DEBIAN_MIRROR=http://deb.debian.org/debian
 ARG DEBIAN_SECURITY_MIRROR=http://deb.debian.org/debian-security
 
@@ -8,6 +8,7 @@ FROM debian:${DEBIAN_VERSION} AS builder
 
 ARG GROMACS_VERSION
 ARG GROMACS_SHA256
+ARG BUILD_JOBS=4
 ARG DEBIAN_MIRROR
 ARG DEBIAN_SECURITY_MIRROR
 
@@ -55,7 +56,9 @@ RUN set -eux; \
       -DGMX_THREAD_MPI=ON \
       -DGMX_OPENMP=ON \
       -DGMX_GPU=OFF \
+      -DGMX_NNPOT=OFF \
       -DGMX_SIMD=None \
+      -DGMX_USE_RDTSCP=OFF \
       -DGMX_FFT_LIBRARY=fftw3 \
       -DGMX_DOUBLE=OFF \
       -DGMXAPI=OFF \
@@ -63,10 +66,17 @@ RUN set -eux; \
       -DBUILD_TESTING=OFF \
       -DGMX_BUILD_UNITTESTS=OFF \
       -DREGRESSIONTEST_DOWNLOAD=OFF; \
-    cmake --build build --parallel "$(nproc)"; \
+    cmake --build build --parallel "${BUILD_JOBS}"; \
     cmake --install build; \
-    /opt/gromacs/bin/gmx --version | grep -F "GROMACS version:" >/dev/null; \
-    /opt/gromacs/bin/gmx --version | grep -F "${GROMACS_VERSION}" >/dev/null
+    /opt/gromacs/bin/gmx --version > /tmp/gromacs-version.txt; \
+    awk -v version="${GROMACS_VERSION}" '$1 == "GROMACS" && $2 == "version:" && $3 == version { found=1 } END { exit !found }' /tmp/gromacs-version.txt; \
+    mkdir -p /opt/gromacs/share/licenses; \
+    cp COPYING AUTHORS /opt/gromacs/share/licenses/; \
+    rm -rf /opt/gromacs/include /opt/gromacs/lib/cmake /opt/gromacs/lib/pkgconfig /opt/gromacs/share/gromacs/template
+
+RUN set -eux; \
+    find src/external -type f \( -iname '*license*' -o -iname '*copying*' -o -iname '*notice*' \) \
+      -exec cp --parents '{}' /opt/gromacs/share/licenses/ \;
 
 FROM debian:${DEBIAN_VERSION}
 
@@ -97,38 +107,24 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/gromacs /opt/gromacs
+COPY docker/gromacs-smoke /usr/local/bin/gromacs-smoke
 
 ENV PATH=/opt/gromacs/bin:${PATH}
 ENV LD_LIBRARY_PATH=/opt/gromacs/lib
 ENV GMXDATA=/opt/gromacs/share/gromacs
 
-RUN ln -sf /opt/gromacs/bin/gmx /usr/local/bin/gmx
+RUN ln -sf /opt/gromacs/bin/gmx /usr/local/bin/gmx; \
+    chmod 755 /usr/local/bin/gromacs-smoke
 
 RUN set -eux; \
-    gmx --version | grep -F "GROMACS version:" >/dev/null; \
-    gmx --version | grep -F "2026.3" >/dev/null; \
-    gmx help commands | grep -F "mdrun" >/dev/null; \
-    gmx help commands | grep -F "pdb2gmx" >/dev/null; \
-    gmx mdrun -h 2>&1 | grep -F "GROMACS" >/dev/null; \
+    gromacs-smoke version; \
+    gromacs-smoke help; \
     ldd "$(command -v gmx)" | grep -F "libfftw3f" >/dev/null; \
     ldd "$(command -v gmx)" | grep -F "libgomp" >/dev/null
 
-RUN set -eux; \
-    mkdir -p /tmp/gromacs-check; \
-    cd /tmp/gromacs-check; \
-    printf "Tiny water\n    3\n    1SOL     OW    1   0.000   0.000   0.000\n    1SOL    HW1    2   0.095   0.000   0.000\n    1SOL    HW2    3  -0.032   0.090   0.000\n   1.00000   1.00000   1.00000\n" > water.gro; \
-    gmx editconf -f water.gro -o water.pdb >/dev/null 2>&1; \
-    grep -F "ATOM" water.pdb >/dev/null; \
-    printf '#include "oplsaa.ff/forcefield.itp"\n#include "oplsaa.ff/tip3p.itp"\n\n[ system ]\nTiny water\n\n[ molecules ]\nSOL 1\n' > topol.top; \
-    printf "integrator = md\nnsteps = 0\ndt = 0.001\nnstlist = 1\ncutoff-scheme = Verlet\nrlist = 0.4\nverlet-buffer-tolerance = -1\ncoulombtype = Cut-off\nrcoulomb = 0.4\nrvdw = 0.4\npbc = xyz\nconstraints = none\ncontinuation = yes\n" > mini.mdp; \
-    gmx grompp -f mini.mdp -c water.gro -p topol.top -o mini.tpr >/dev/null 2>&1; \
-    test -s mini.tpr; \
-    gmx mdrun -deffnm mini -ntmpi 1 -ntomp 1 >/dev/null 2>&1; \
-    test -s mini.log; \
-    cd /; \
-    rm -rf /tmp/gromacs-check
+RUN gromacs-smoke convert
 
-WORKDIR /root
+WORKDIR /tmp
 
 ENV TAFFISH_ENV=TAFFISH
 ENV TAFFISH_NAME=gromacs

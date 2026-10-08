@@ -1,0 +1,101 @@
+#!/bin/sh
+# 独立离线微型验收；不是生产入口，也不修改上游算法。
+set -eu
+case "${1-}" in
+  version|help|convert|prepare|simulate|resources|conditional|negative) mode=$1 ;;
+  *) printf 'Usage: gromacs-smoke {version|help|convert|prepare|simulate|resources|conditional|negative}\n' >&2; exit 2 ;;
+esac
+work=$(mktemp -d "${TMPDIR:-/tmp}/gromacs-smoke.XXXXXXXX")
+stage=setup
+finish() {
+    status=$?
+    trap - EXIT
+    if [ "$status" -ne 0 ]; then
+        printf 'gromacs-smoke: %s failed at %s (exit %s)\n' "$mode" "$stage" "$status" >&2
+        for log in "$work"/*.log; do
+            [ -f "$log" ] || continue
+            printf '\n--- %s ---\n' "${log##*/}" >&2
+            tail -n 45 "$log" >&2
+        done
+    fi
+    cd /
+    rm -rf -- "$work"
+    exit "$status"
+}
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+cd "$work"
+run() { stage=$1; shift; "$@" > "$stage.log" 2>&1; }
+fixture() {
+    printf 'Tiny water\n    3\n    1SOL     OW    1   0.000   0.000   0.000\n    1SOL    HW1    2   0.095   0.000   0.000\n    1SOL    HW2    3  -0.032   0.090   0.000\n   1.00000   1.00000   1.00000\n' > water.gro
+    printf '#include "oplsaa.ff/forcefield.itp"\n#include "oplsaa.ff/tip3p.itp"\n[ system ]\nTiny water\n[ molecules ]\nSOL 1\n' > topol.top
+    printf 'integrator = md\nnsteps = 2\ndt = 0.001\nnstlist = 1\ncutoff-scheme = Verlet\nrlist = 0.4\nverlet-buffer-tolerance = -1\ncoulombtype = Cut-off\nrcoulomb = 0.4\nrvdw = 0.4\npbc = xyz\nconstraints = none\ncontinuation = yes\nnstenergy = 1\nnstxout-compressed = 1\n' > mini.mdp
+}
+case "$mode" in
+  version)
+    run version gmx --version
+    awk '$1 == "GROMACS" && $2 == "version:" && $3 == "2026.4" {found=1} END {exit !found}' version.log
+    grep -E 'GPU support: +disabled' version.log
+    # 上游只在x86打印此字段；arm64缺少该行是正常行为。
+    if [ "$(uname -m)" = x86_64 ]; then grep -E 'RDTSCP: +disabled' version.log; fi
+    ;;
+  help)
+    run commands gmx help commands
+    for cmd in pdb2gmx grompp mdrun trjconv energy xpm2ps; do grep -w "$cmd" commands.log >/dev/null; done
+    run mdrun gmx mdrun -h
+    grep -F -- '-ntomp' mdrun.log >/dev/null
+    ;;
+  convert)
+    fixture
+    run editconf gmx editconf -f water.gro -o water.pdb
+    grep -E '^(ATOM|HETATM)' water.pdb >/dev/null
+    ;;
+  prepare)
+    run solvate gmx solvate -cs spc216.gro -box 1 1 1 -o solvated.gro
+    test -s solvated.gro
+    run editconf gmx editconf -f solvated.gro -o water.pdb
+    run pdb2gmx gmx pdb2gmx -f water.pdb -o processed.gro -p topol.top -ff oplsaa -water spc
+    test -s topol.top
+    ;;
+  simulate)
+    fixture
+    run grompp gmx grompp -f mini.mdp -c water.gro -p topol.top -o mini.tpr
+    run mdrun gmx mdrun -deffnm mini -ntmpi 1 -ntomp 1
+    test -s mini.gro && test -s mini.edr && test -s mini.xtc
+    # 重定向输入使 run 留在父 shell；管道子 shell 会丢失失败阶段标记。
+    printf 'Potential\n0\n' > energy-input.txt
+    run energy gmx energy -f mini.edr -o potential.xvg -xvg none < energy-input.txt
+    awk 'NF>=2 && $1 !~ /^[@#]/ {n++} END {exit n<1}' potential.xvg
+    printf '0\n' > trajectory-input.txt
+    run trjconv gmx trjconv -s mini.tpr -f mini.xtc -o frames.pdb < trajectory-input.txt
+    grep -E '^(ATOM|HETATM)' frames.pdb >/dev/null
+    ;;
+  resources)
+    test -s /opt/gromacs/share/licenses/COPYING
+    for ff in amber14sb amber19sb amber99sb-ildn charmm27 gromos54a7 oplsaa; do
+        test -s "/opt/gromacs/share/gromacs/top/$ff.ff/forcefield.itp"
+    done
+    fixture
+    mkdir library
+    cp /opt/gromacs/share/gromacs/top/oplsaa.ff/tip3p.itp library/site-water.itp
+    sed 's|oplsaa.ff/tip3p.itp|site-water.itp|' topol.top > site.top
+    run resource gmx grompp -f mini.mdp -c water.gro -p site.top -o absent.tpr && exit 1
+    export GMXLIB="$work/library"
+    run shared gmx grompp -f mini.mdp -c water.gro -p site.top -o shared.tpr
+    test -s shared.tpr
+    ;;
+  conditional)
+    fixture
+    awk 'BEGIN {print "#ifdef TAFFISH_UNUSED"; for(i=0;i<100000;i++) print "; skipped line"; print "#endif"}' > conditional.top
+    cat topol.top >> conditional.top
+    run conditional gmx grompp -f mini.mdp -c water.gro -p conditional.top -o conditional.tpr
+    test -s conditional.tpr
+    ;;
+  negative)
+    if run missing gmx editconf -f missing.gro -o invalid.pdb; then exit 1; fi
+    grep -F 'does not exist' missing.log >/dev/null
+    test ! -e invalid.pdb
+    ;;
+esac
+printf 'gromacs-smoke: %s PASS\n' "$mode"

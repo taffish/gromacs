@@ -1,2 +1,2 @@
-<taf-app:container:ghcr.io/taffish/gromacs:2026.3-r1>
+<taf-app:container:ghcr.io/taffish/gromacs:2026.4-r1>
 gmx ::*ARGV*::

@@ -1,65 +1,66 @@
-taf-gromacs 2026.3-r1
-
-TAFFISH wrapper for GROMACS, a molecular dynamics simulation and analysis
-suite.
+taf-gromacs 2026.4-r1
+Prepare molecular systems, run CPU molecular dynamics and analyse trajectories.
+CLI/headless only: export XVG/PDB/EPS for a separately installed viewer.
 
 Usage:
-  taf-gromacs [TAF-APP-OPTION]
-  taf-gromacs [IN-CONTAINER-COMMAND] [ARGS...]
+  taf-gromacs gmx COMMAND [OPTIONS...]
+  taf-gromacs --help                 Installed-wrapper help
+  taf-gromacs --version              Package version
+  taf-gromacs --compile              Show generated command
+  taf-gromacs gmx --version          Upstream version and build profile
+  taf-gromacs gmx help commands      List upstream commands
+  taf-gromacs gmx mdrun -h           Command-specific help
 
-TAF app options:
-  -h, --help       Show this help text
-  -v, --version    Show package and command version
-  --compile        Print generated shell code instead of running it
-  --               Stop parsing TAFFISH wrapper options
+Always include gmx before a subcommand, not "taf-gromacs mdrun ...".
+Use "taf-gromacs -- --version" for option-leading default-command arguments.
 
-Examples:
-  taf-gromacs gmx --version
-  taf-gromacs gmx help commands
-  taf-gromacs gmx pdb2gmx -h
-  taf-gromacs gmx grompp -h
-  taf-gromacs gmx mdrun -h
-  taf-gromacs gmx editconf -f input.gro -o output.pdb
-  taf-gromacs gmx grompp -f md.mdp -c conf.gro -p topol.top -o topol.tpr
+Select one backend:
+  export TAFFISH_CONTAINER_BACKEND=docker
+  export TAFFISH_CONTAINER_BACKEND=podman
+  export TAFFISH_CONTAINER_BACKEND=apptainer
+Apptainer requires native Linux. Use a writable project directory; files in
+the current directory are accessible to the wrapper. Commands below are shared.
+
+Prepare and run (supply scientifically appropriate structures and md.mdp):
+  taf-gromacs gmx pdb2gmx -f protein.pdb -o conf.gro -p topol.top -ff amber99sb-ildn -water tip3p
+  taf-gromacs gmx editconf -f conf.gro -o boxed.gro -c -d 1.0 -bt cubic
+  taf-gromacs gmx solvate -cp boxed.gro -cs spc216.gro -o solvated.gro -p topol.top
+  taf-gromacs gmx grompp -f md.mdp -c solvated.gro -p topol.top -o md.tpr
   taf-gromacs gmx mdrun -deffnm md -ntmpi 1 -ntomp 4
-  taf-gromacs gmx energy -f em.edr -o energy.xvg
-  taf-gromacs gmx trjconv -s md.tpr -f md.xtc -o centered.xtc
+Use -ff/-water to select compatible parameters and -ntomp for available CPUs.
+Do not bypass unexplained grompp warnings with -maxwarn.
 
-Command mode:
-  GROMACS subcommands belong to the gmx executable. Use:
+Analyse and export:
+  printf 'Potential\n0\n' | taf-gromacs gmx energy -f md.edr -o potential.xvg -xvg none
+  printf '0\n' | taf-gromacs gmx trjconv -s md.tpr -f md.xtc -o frames.pdb
+Select group/energy names appropriate to your system. Key outputs: TPR run
+input, GRO coordinates, EDR energies, LOG, checkpoints and configured trajectories.
+Use distinct output prefixes; upstream normally backs up existing output files.
+GMX_MAXBACKUP=0 can overwrite files; it is not an overwrite guard in this version.
 
-    taf-gromacs gmx mdrun ...
-    taf-gromacs gmx grompp ...
+Additional shared force fields/topologies:
+Built-in force fields need no download. For extra site files, first ask the
+administrator to prepare /srv/taffish/db/gromacs/site-v1 with read/search access.
+Run from a separate writable project; choose the matching backend command:
 
-  Do not use taf-gromacs mdrun ... as the normal form.
+  TAFFISH_CONTAINER_BACKEND=docker TAFFISH_DOCKER_RUN_ARGS="-v /srv/taffish/db/gromacs/site-v1:/gromacs-library:ro" taf-gromacs env GMXLIB=/gromacs-library gmx grompp -f md.mdp -c conf.gro -p topol.top -o md.tpr
+  TAFFISH_CONTAINER_BACKEND=podman TAFFISH_PODMAN_RUN_ARGS="-v /srv/taffish/db/gromacs/site-v1:/gromacs-library:ro" taf-gromacs env GMXLIB=/gromacs-library gmx grompp -f md.mdp -c conf.gro -p topol.top -o md.tpr
+  TAFFISH_CONTAINER_BACKEND=apptainer TAFFISH_APPTAINER_RUN_ARGS="--bind /srv/taffish/db/gromacs/site-v1:/gromacs-library:ro" taf-gromacs env GMXLIB=/gromacs-library gmx grompp -f md.mdp -c conf.gro -p topol.top -o md.tpr
 
-Build profile:
-  GROMACS 2026.3, mixed precision, thread-MPI plus OpenMP, FFTW3 single
-  precision, portable scalar SIMD, GPU off, external MPI off. The mdrun
-  -plumed option is enabled, but standalone PLUMED tooling is not packaged.
+Replace the host path for a personal library. On VM backends expose it to the VM.
+GMXLIB adds a search path; cwd and built-ins remain available. Avoid duplicate
+force-field names. Omit the bind and env assignment to disable extra sharing.
+No automatic host-library mount or missing-resource download is performed.
 
-Included:
-  gmx executable, GROMACS shared libraries, standard force-field/topology data,
-  CPU mdrun via thread-MPI/OpenMP, and preparation/analysis subcommands listed
-  by gmx help commands.
+Limits and troubleshooting:
+  CPU only; GPU/external MPI/NNP models need a separately configured site build.
+  Desktop/-w viewing is not provided on Docker, Podman or Apptainer:
+  save outputs and open them in an external viewer instead.
+  PLUMED/VMD interfaces do not include their external runtimes.
+  For spaces, use uncompressed input and preserve literal quotes:
+  taf-gromacs gmx editconf -f "'water input.gro'" -o "'water output.pdb'"
+  Choose output directories you can write; keep shared resources read-only.
+  Tiny examples do not validate a scientific MD protocol.
 
-Not included:
-  CUDA, SYCL, HIP, OpenCL, external MPI, CUDA-aware MPI, NVSHMEM, cuFFTMp,
-  standalone PLUMED tools, gmxapi/nblib developer packaging, MDAnalysis, VMD,
-  MDTraj, PyMOL, or hardware-tuned production builds.
-
-Notes:
-  This is a portable CPU baseline for preparation, analysis, teaching, testing,
-  and modest CPU-only runs. Long production simulations often need a
-  hardware-tuned upstream build with GPU, MPI, optimized SIMD, and site policy.
-
-Container:
-  image: ghcr.io/taffish/gromacs:2026.3-r1
-  platforms: linux/amd64, linux/arm64
-
-Upstream:
-  homepage: https://www.gromacs.org/
-  source:   https://gitlab.com/gromacs/gromacs
-  manual:   https://manual.gromacs.org/2026.3/
-  license:  LGPL-2.1-or-later
-  doi:      10.5281/zenodo.20037885
+More: https://manual.gromacs.org/2026.4/
+Resource preparation, build profile and detailed limits: app README.
